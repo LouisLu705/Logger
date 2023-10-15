@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:math' as math;
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   runApp(const MainApp());
@@ -115,9 +117,13 @@ class _HistoryPage extends State<HistoryPage> {
 
       // Read the file
       final contents = await file.readAsString();
+      final lines = contents.split('\n');
+      // FILE FORMAT:
+      // Line 1:          DateTime | e.g./  2023-10-14 20:55:09.589323 
+      // Line 2: Historical Points | e.g./  [(1,2),(2,3),(3,4)]
       List<Offset> history = <Offset>[];
       RegExp matchAllNumbers = RegExp(r'([0-9]+\.[0-9])'); // RegExp to match doubles found (and slightly modified) from: https://stackoverflow.com/questions/10516967/regexp-for-a-double
-      var offsets = matchAllNumbers.allMatches(contents);
+      var offsets = matchAllNumbers.allMatches(lines[1]);
       for (var i = 0; i < offsets.length; i=i+2) {
         var dx = offsets.elementAt(i)[0]!;
         var dy = offsets.elementAt(i+1)[0]!;
@@ -188,18 +194,30 @@ class _MainGraphPageState extends State<MainGraphPage> {
   var resetPanFlag = false;
   var dotsMarkedForDeletion = <Offset>[];
   var enterKeyActivator = const SingleActivator(LogicalKeyboardKey.enter);
-  var ctrlSKeyActivator = const SingleActivator(LogicalKeyboardKey.keyS, control: true);
+  var ctrlSKeyActivator = const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: false);
+  var ctrlSAndShiftKeyActivator = const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true);
+  var saveState = 0;
+  String? currentFileName;
   Future<String> get _localPath async { 
     final directory = await getApplicationDocumentsDirectory();
     return directory.path;
   }
-  Future<File> get _localFile async {
-    final path = await _localPath;
-    return File('$path/history.txt');
+  Future<File?> get _localFile async {
+    final localpath = await _localPath;
+    final path = (currentFileName == null || saveState == 1) ? await FilePicker.platform.saveFile(
+      dialogTitle: 'Please select an output file:',
+      fileName: currentFileName ?? 'Untitled',
+      initialDirectory: localpath) : p.join(localpath, currentFileName);
+    return File('$path');
   }
-  Future<File> _writeHistory(List<Offset> history) async {
+  Future<File?> _writeHistory(List<Offset> history) async {
     final file = await _localFile;
-    var writeOut = '['; // [
+    if (file == null) {
+      return null;
+    }
+    final now = DateTime.now();
+    var writeOut = '${now.toString()}\n'; 
+    writeOut = '$writeOut['; // [
     for (var i = 0; i < history.length; i++) {
       var pos = history[i];
       if (i == 0) {
@@ -213,7 +231,7 @@ class _MainGraphPageState extends State<MainGraphPage> {
       }
     }
     writeOut = '$writeOut]'; // [(1,2),(2,3),(3,4)]
-    
+    currentFileName = p.split(file.path).lastOrNull;
     return file.writeAsString(writeOut, 
     mode: FileMode.write,
     encoding: utf8,
@@ -294,7 +312,12 @@ class _MainGraphPageState extends State<MainGraphPage> {
           enterKeyActivator: () { 
             setState(() => _deletePoints());
           },
-          ctrlSKeyActivator: () { 
+          ctrlSKeyActivator: () {
+            saveState = 0; 
+            _writeHistory(history);
+          },
+          ctrlSAndShiftKeyActivator: () {
+            saveState = 1; 
             _writeHistory(history);
           },
         },
