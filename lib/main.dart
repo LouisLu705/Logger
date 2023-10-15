@@ -107,46 +107,60 @@ class _HistoryPage extends State<HistoryPage> {
 
     return directory.path;
   }
-  Future<File> get _localFile async {
+  Future<List<File>?> get _localFiles async {
     final path = await _localPath;
-    return File('$path/history.txt');
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      lockParentWindow: true,
+      allowMultiple: true,
+      initialDirectory: path);
+    if (result == null) {
+      return null;
+    }
+    List<File> files = result.paths.map((path) => File(path!)).toList();
+    return files;
   }
-  Future<List<Offset>> readHistory() async {
+  Future<List<List<Offset>>?> readHistory() async {
+    final ret = <List<Offset>>[];
     try {
-      final file = await _localFile;
-
-      // Read the file
-      final contents = await file.readAsString();
-      final lines = contents.split('\n');
-      // FILE FORMAT:
-      // Line 1:          DateTime | e.g./  2023-10-14 20:55:09.589323 
-      // Line 2: Historical Points | e.g./  [(1,2),(2,3),(3,4)]
-      List<Offset> history = <Offset>[];
-      RegExp matchAllNumbers = RegExp(r'([0-9]+\.[0-9])'); // RegExp to match doubles found (and slightly modified) from: https://stackoverflow.com/questions/10516967/regexp-for-a-double
-      var offsets = matchAllNumbers.allMatches(lines[1]);
-      for (var i = 0; i < offsets.length; i=i+2) {
-        var dx = offsets.elementAt(i)[0]!;
-        var dy = offsets.elementAt(i+1)[0]!;
-        history.add(Offset(double.parse(dx), double.parse(dy)));
+      final files = await _localFiles;
+      if (files == null || files.isEmpty) {
+        return <List<Offset>>[];
       }
-      return history;
+      for (var file in files) {
+        // Read the file
+        final contents = await file.readAsString();
+        final lines = contents.split('\n');
+        // FILE FORMAT:
+        // Line 1:          DateTime | e.g./  2023-10-14 20:55:09.589323 
+        // Line 2: Historical Points | e.g./  [(1,2),(2,3),(3,4)]
+        List<Offset> history = <Offset>[];
+        RegExp matchAllNumbers = RegExp(r'([0-9]+\.[0-9])'); // RegExp to match doubles found (and slightly modified) from: https://stackoverflow.com/questions/10516967/regexp-for-a-double
+        var offsets = matchAllNumbers.allMatches(lines[1]);
+        for (var i = 0; i < offsets.length; i=i+2) {
+          var dx = offsets.elementAt(i)[0]!;
+          var dy = offsets.elementAt(i+1)[0]!;
+          history.add(Offset(double.parse(dx), double.parse(dy)));
+        }
+        ret.add(history);
+      }
+      return ret;
     } catch (e) {
-      // If encountering an error, return an empty list
-      return <Offset>[];
+      // If encountering an error, return an empty list so that we do not display anything
+      return <List<Offset>>[];
     }
   }  
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Offset>>(
+    return FutureBuilder<List<List<Offset>>?>(
         future: readHistory(), 
-        builder: (BuildContext context, AsyncSnapshot<List<Offset>> snapshot) {
+        builder: (BuildContext context, AsyncSnapshot<List<List<Offset>>?> snapshot) {
           Widget chosenChild;
-          if (snapshot.hasData) {
+          if (snapshot.hasData) { // This just means that a List of files was returned. The list itself may still be empty.
             chosenChild = CustomPaint(
               size: Size.infinite,
               foregroundPainter: DotPainter(infinitePos),
-              painter: GraphPainter(snapshot.data!, 1, infinitePos, infinitePos),
+              painter: GraphPainter(snapshot.data!.isNotEmpty ? snapshot.data!.first : <Offset>[], 1, infinitePos, infinitePos),
               child: Container(),
             );
           }
