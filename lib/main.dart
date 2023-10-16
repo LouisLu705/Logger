@@ -157,12 +157,34 @@ class _HistoryPage extends State<HistoryPage> {
         builder: (BuildContext context, AsyncSnapshot<List<List<Offset>>?> snapshot) {
           Widget chosenChild;
           if (snapshot.hasData) { // This just means that a List of files was returned. The list itself may still be empty.
-            chosenChild = CustomPaint(
-              size: Size.infinite,
-              foregroundPainter: DotPainter(infinitePos),
-              painter: GraphPainter(snapshot.data!.isNotEmpty ? snapshot.data!.first : <Offset>[], 1, infinitePos, infinitePos),
-              child: Container(),
+            chosenChild = Row(
+              children: <Widget> [
+                Expanded(
+                  child: Card(
+                    child: ListView.separated(
+                      separatorBuilder: (_, __) => const Divider(height: 0.5),
+                      itemCount: snapshot.data!.length,
+                      itemBuilder: (context, index) => Row(
+                        children: <Widget> [
+                          CustomPaint(
+                              size: const Size(100, 100),
+                              painter: ThumbnailPainter(snapshot.data!.isNotEmpty ? snapshot.data![index] : <Offset>[]),
+                          ),                    
+                          Text('item $index'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // TODO: Add a widget here which consists of settings, filters, search bar, etc... const Text('Settings Here'),
+              ],
             );
+            // chosenChild = CustomPaint(
+            //   size: Size.infinite,
+            //   foregroundPainter: DotPainter(infinitePos),
+            //   painter: GraphPainter(snapshot.data!.isNotEmpty ? snapshot.data!.first : <Offset>[], 1, infinitePos, infinitePos),
+            //   child: Container(),
+            // );
           }
           else if (snapshot.hasError) {
             chosenChild = Text('Error: ${snapshot.error}');          } 
@@ -388,6 +410,32 @@ class DotPainter extends CustomPainter {
   }
 }
 
+class ThumbnailPainter extends CustomPainter {
+  var history = <Offset>[];
+  ThumbnailPainter(this.history);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _paintAxis(canvas, size);
+
+    // TODO: Need to normalize offset to thumbnail size or consider a new scheme to support absolute position of points placed
+    // Paint dotPaint = Paint()
+    //   ..color = Colors.teal
+    //   ..style = PaintingStyle.fill;
+
+    // const dotRadius = 3.0;
+    // debugPrint(size.toString());
+    // for (var pos in history) {
+    //   canvas.drawCircle(pos, dotRadius, dotPaint);
+    // }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) {
+    return false;
+  }
+}
+
 class GraphPainter extends CustomPainter {
   var history = <Offset>[];
   var mode = 1;
@@ -416,19 +464,24 @@ class GraphPainter extends CustomPainter {
 
   void paintAddMode(Canvas canvas, Size size)
   {
+    _paintAxisAndLabel(canvas, size);
+
     Paint dotPaint = Paint()
       ..color = Colors.teal
-      ..style = PaintingStyle.fill
-      ..strokeWidth = 15;
-    _paintAxis(canvas, size);
-    
+      ..style = PaintingStyle.fill;
+
+    const dotRadius = 15.0;
+    debugPrint(size.toString());
+
     for (var pos in history) {
-      canvas.drawCircle(pos, 15, dotPaint);
+      canvas.drawCircle(pos, dotRadius, dotPaint);
     }
   }
 
   void paintRemoveMode(Canvas canvas, Size size)
   {
+    _paintAxisAndLabel(canvas, size);
+
     Paint rectangleOutlinePaint = Paint()
       ..color = Colors.red
       ..style = PaintingStyle.stroke
@@ -439,14 +492,12 @@ class GraphPainter extends CustomPainter {
       ..strokeWidth = 3;
     Paint dotPaint = Paint()
       ..color = Colors.teal
-      ..style = PaintingStyle.fill
-      ..strokeWidth = 15;
+      ..style = PaintingStyle.fill;
     Paint highlightedDotPaint = Paint()
       ..color = Color.alphaBlend(Colors.yellow, const Color.fromARGB(100, 244, 67, 54)) // This is the same as Colors.yellow except the Alpha channel is modified to add transparency
-      ..style = PaintingStyle.fill
-      ..strokeWidth = 15;
-
-    _paintAxis(canvas, size);
+      ..style = PaintingStyle.fill;
+    
+    const dotRadius = 15.0;
 
     final path = Path();
     path.moveTo(cursorStartPos.dx, cursorStartPos.dy);
@@ -459,166 +510,209 @@ class GraphPainter extends CustomPainter {
 
     for (var pos in history) {
       if (path.contains(pos)) {
-        canvas.drawCircle(pos, 15, highlightedDotPaint);
+        canvas.drawCircle(pos, dotRadius, highlightedDotPaint);
       }
       else {
-        canvas.drawCircle(pos, 15, dotPaint);
+        canvas.drawCircle(pos, dotRadius, dotPaint);
       }
     }
   }
+}
 
-  void _paintAxis(Canvas canvas, Size size)
-  {
-    Paint crossBrush = Paint()
-      ..color = Colors.black
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
-    Paint arrowBrush = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.fill;
+void _paintAxisAndLabel(Canvas canvas, Size size)
+{
+  _paintAxis(canvas, size);
+  _paintLabel(canvas, size);
+}
 
-    const arrowAngle =  30 * math.pi / 180;
-    const transformFactor = 20.0;
-    const textStyle = TextStyle(
-      color: Colors.black,
-      fontSize: 30,
-    );
+void _paintAxis(Canvas canvas, Size size)
+{
+  Paint crossBrush = Paint()
+    ..color = Colors.black
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = size.height/100;//6;
+  Paint arrowBrush = Paint()
+    ..color = Colors.red
+    ..style = PaintingStyle.fill;
 
-    const yLabelTopText = TextSpan(
-      text: 'Peace',
-      style: textStyle,
-    );
-    const yLabelBottomText = TextSpan(
-      text: 'Suffering',
-      style: textStyle,
-    );
-    const xLabelLeftText = TextSpan(
-      text: 'Pain',
-      style: textStyle,
-    );
-    const xLabelRightText = TextSpan(
-      text: 'Pleasure',
-      style: textStyle,
-    );
+  const arrowAngle =  30 * math.pi / 180;
+  const transformFactor = 20.0;
 
-    final yLabelTopPainter = TextPainter(
-      text: yLabelTopText,
-      textDirection: TextDirection.ltr,
-    );
-    yLabelTopPainter.layout(
-      minWidth: 0,
-      maxWidth: size.width,
-    );
-    final yLabelBottomPainter = TextPainter(
-      text: yLabelBottomText,
-      textDirection: TextDirection.ltr,
-    );
-    yLabelBottomPainter.layout(
-      minWidth: 0,
-      maxWidth: size.width,
-    );
-    final xLabelLeftPainter = TextPainter(
-      text: xLabelLeftText,
-      textDirection: TextDirection.ltr,
-    );
-    xLabelLeftPainter.layout(
-      minWidth: 0,
-      maxWidth: size.width,
-    );
-    final xLabelRightPainter = TextPainter(
-      text: xLabelRightText,
-      textDirection: TextDirection.ltr,
-    );
-    xLabelRightPainter.layout(
-      minWidth: 0,
-      maxWidth: size.width,
-    );
+  final path = Path();
+  final arrowSize = crossBrush.strokeWidth*7;
+  final yAxisStart = Offset(size.width/2, transformFactor);
+  final yAxisEnd = Offset(size.width/2, size.height-transformFactor);
+  final xAxisStart = Offset(transformFactor, size.height/2);
+  final xAxisEnd = Offset(size.width-transformFactor, size.height/2);
+  
+  final yAxisStartArrowXComp = yAxisStart.dx - yAxisEnd.dx;
+  final yAxisStartArrowYComp = yAxisStart.dy - yAxisEnd.dy;
+  final yAxisStartArrowAngle = math.atan2(yAxisStartArrowYComp, yAxisStartArrowXComp);
+  final yAxisEndArrowXComp = yAxisEnd.dx - yAxisStart.dx;
+  final yAxisEndArrowYComp = yAxisEnd.dy - yAxisStart.dy;
+  final yAxisEndArrowAngle = math.atan2(yAxisEndArrowYComp, yAxisEndArrowXComp);
 
+  final xAxisStartArrowXComp = xAxisStart.dx - xAxisEnd.dx;
+  final xAxisStartArrowYComp = xAxisStart.dy - xAxisEnd.dy;
+  final xAxisStartArrowAngle = math.atan2(xAxisStartArrowYComp, xAxisStartArrowXComp);
+  final xAxisEndArrowXComp = xAxisEnd.dx - xAxisStart.dx;
+  final xAxisEndArrowYComp = xAxisEnd.dy - xAxisStart.dy;
+  final xAxisEndArrowAngle = math.atan2(xAxisEndArrowYComp, xAxisEndArrowXComp);
 
-    final path = Path();
-    final arrowSize = crossBrush.strokeWidth*7;
-    final yAxisStart = Offset(size.width/2, transformFactor);
-    final yAxisEnd = Offset(size.width/2, size.height-transformFactor);
-    final xAxisStart = Offset(transformFactor, size.height/2);
-    final xAxisEnd = Offset(size.width-transformFactor, size.height/2);
-    
-    final yAxisStartArrowXComp = yAxisStart.dx - yAxisEnd.dx;
-    final yAxisStartArrowYComp = yAxisStart.dy - yAxisEnd.dy;
-    final yAxisStartArrowAngle = math.atan2(yAxisStartArrowYComp, yAxisStartArrowXComp);
-    final yAxisEndArrowXComp = yAxisEnd.dx - yAxisStart.dx;
-    final yAxisEndArrowYComp = yAxisEnd.dy - yAxisStart.dy;
-    final yAxisEndArrowAngle = math.atan2(yAxisEndArrowYComp, yAxisEndArrowXComp);
+  final p1 = Offset(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle - arrowAngle),
+    yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle - arrowAngle));
+  final p2 = Offset(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle + arrowAngle),
+    yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle + arrowAngle));
+  final p3 = yAxisStart;
+  final a = (p1 - p3).distance;
+  final b = (p1 - p2).distance;
+  final c = (p2 - p3).distance;
+  final s = (a+b+c)/2;
+  final area = math.sqrt((s*(s-a)*(s-b)*(s-c)));
+  final height = area / (1 / 2 * b);
 
-    final xAxisStartArrowXComp = xAxisStart.dx - xAxisEnd.dx;
-    final xAxisStartArrowYComp = xAxisStart.dy - xAxisEnd.dy;
-    final xAxisStartArrowAngle = math.atan2(xAxisStartArrowYComp, xAxisStartArrowXComp);
-    final xAxisEndArrowXComp = xAxisEnd.dx - xAxisStart.dx;
-    final xAxisEndArrowYComp = xAxisEnd.dy - xAxisStart.dy;
-    final xAxisEndArrowAngle = math.atan2(xAxisEndArrowYComp, xAxisEndArrowXComp);
+  // Apply new offsets after taking into account the height of each arrow which is appended to the end of the axis line
+  final yAxisStartOffset = Offset(yAxisStart.dx, yAxisStart.dy + height);
+  final yAxisEndOffset = Offset(yAxisEnd.dx, yAxisEnd.dy - height);
+  final xAxisStartOffset = Offset(xAxisStart.dx + height, xAxisStart.dy);
+  final xAxisEndOffset = Offset(xAxisEnd.dx - height, xAxisEnd.dy);
 
-    final p1 = Offset(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle - arrowAngle),
-      yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle - arrowAngle));
-    final p2 = Offset(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle + arrowAngle),
-      yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle + arrowAngle));
-    final p3 = yAxisStart;
-    final a = (p1 - p3).distance;
-    final b = (p1 - p2).distance;
-    final c = (p2 - p3).distance;
-    final s = (a+b+c)/2;
-    final area = math.sqrt((s*(s-a)*(s-b)*(s-c)));
-    final height = area / (1 / 2 * b);
+  // Draw Y Axis and apply offset for arrow
+  canvas.drawLine(
+    yAxisStartOffset,
+    yAxisEndOffset, crossBrush);
+  // Draw X Axis and apply offset for arrow
+  canvas.drawLine(
+    xAxisStartOffset,
+    xAxisEndOffset, crossBrush);
+  // Draw Y Axis Arrow at the start of the line
+  path.moveTo(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle - arrowAngle),
+    yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle - arrowAngle));
+  path.lineTo(yAxisStart.dx, yAxisStart.dy);
+  path.lineTo(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle + arrowAngle),
+    yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle + arrowAngle));
+  path.close();
+  canvas.drawPath(path, arrowBrush);
+  // Draw Y Axis Arrow at the end of the line
+  path.moveTo(yAxisEnd.dx - arrowSize * math.cos(yAxisEndArrowAngle - arrowAngle),
+    yAxisEnd.dy - arrowSize * math.sin(yAxisEndArrowAngle - arrowAngle));
+  path.lineTo(yAxisEnd.dx, yAxisEnd.dy);
+  path.lineTo(yAxisEnd.dx - arrowSize * math.cos(yAxisEndArrowAngle + arrowAngle),
+    yAxisEnd.dy - arrowSize * math.sin(yAxisEndArrowAngle + arrowAngle));
+  path.close();
+  // Draw X Axis Arrow at the start of the line
+  canvas.drawPath(path, arrowBrush);
+      path.moveTo(xAxisStart.dx - arrowSize * math.cos(xAxisStartArrowAngle - arrowAngle),
+    xAxisStart.dy - arrowSize * math.sin(xAxisStartArrowAngle - arrowAngle));
+  path.lineTo(xAxisStart.dx, xAxisStart.dy);
+  path.lineTo(xAxisStart.dx - arrowSize * math.cos(xAxisStartArrowAngle + arrowAngle),
+    xAxisStart.dy - arrowSize * math.sin(xAxisStartArrowAngle + arrowAngle));
+  path.close();
+  canvas.drawPath(path, arrowBrush);
+  // Draw X Axis Arrow at the end of the line
+  path.moveTo(xAxisEnd.dx - arrowSize * math.cos(xAxisEndArrowAngle - arrowAngle),
+    xAxisEnd.dy - arrowSize * math.sin(xAxisEndArrowAngle - arrowAngle));
+  path.lineTo(xAxisEnd.dx, xAxisEnd.dy);
+  path.lineTo(xAxisEnd.dx - arrowSize * math.cos(xAxisEndArrowAngle + arrowAngle),
+    xAxisEnd.dy - arrowSize * math.sin(xAxisEndArrowAngle + arrowAngle));
+  path.close();
+  canvas.drawPath(path, arrowBrush);
+}
 
-    // Apply new offsets after taking into account the height of each arrow which is appended to the end of the axis line
-    final yAxisStartOffset = Offset(yAxisStart.dx, yAxisStart.dy + height);
-    final yAxisEndOffset = Offset(yAxisEnd.dx, yAxisEnd.dy - height);
-    final xAxisStartOffset = Offset(xAxisStart.dx + height, xAxisStart.dy);
-    final xAxisEndOffset = Offset(xAxisEnd.dx - height, xAxisEnd.dy);
+void _paintLabel(canvas, size)
+{
+  Paint crossBrush = Paint()
+    ..color = Colors.black
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = size.height/100;//6;
 
-    // Draw Y Axis and apply offset for arrow
-    canvas.drawLine(
-      yAxisStartOffset,
-      yAxisEndOffset, crossBrush);
-    // Draw X Axis and apply offset for arrow
-    canvas.drawLine(
-      xAxisStartOffset,
-      xAxisEndOffset, crossBrush);
-    // Draw Y Axis Arrow at the start of the line
-    path.moveTo(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle - arrowAngle),
-      yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle - arrowAngle));
-    path.lineTo(yAxisStart.dx, yAxisStart.dy);
-    path.lineTo(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle + arrowAngle),
-      yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle + arrowAngle));
-    path.close();
-    canvas.drawPath(path, arrowBrush);
-    // Draw Y Axis Arrow at the end of the line
-    path.moveTo(yAxisEnd.dx - arrowSize * math.cos(yAxisEndArrowAngle - arrowAngle),
-      yAxisEnd.dy - arrowSize * math.sin(yAxisEndArrowAngle - arrowAngle));
-    path.lineTo(yAxisEnd.dx, yAxisEnd.dy);
-    path.lineTo(yAxisEnd.dx - arrowSize * math.cos(yAxisEndArrowAngle + arrowAngle),
-      yAxisEnd.dy - arrowSize * math.sin(yAxisEndArrowAngle + arrowAngle));
-    path.close();
-    // Draw X Axis Arrow at the start of the line
-    canvas.drawPath(path, arrowBrush);
-        path.moveTo(xAxisStart.dx - arrowSize * math.cos(xAxisStartArrowAngle - arrowAngle),
-      xAxisStart.dy - arrowSize * math.sin(xAxisStartArrowAngle - arrowAngle));
-    path.lineTo(xAxisStart.dx, xAxisStart.dy);
-    path.lineTo(xAxisStart.dx - arrowSize * math.cos(xAxisStartArrowAngle + arrowAngle),
-      xAxisStart.dy - arrowSize * math.sin(xAxisStartArrowAngle + arrowAngle));
-    path.close();
-    canvas.drawPath(path, arrowBrush);
-    // Draw X Axis Arrow at the end of the line
-    path.moveTo(xAxisEnd.dx - arrowSize * math.cos(xAxisEndArrowAngle - arrowAngle),
-      xAxisEnd.dy - arrowSize * math.sin(xAxisEndArrowAngle - arrowAngle));
-    path.lineTo(xAxisEnd.dx, xAxisEnd.dy);
-    path.lineTo(xAxisEnd.dx - arrowSize * math.cos(xAxisEndArrowAngle + arrowAngle),
-      xAxisEnd.dy - arrowSize * math.sin(xAxisEndArrowAngle + arrowAngle));
-    path.close();
-    canvas.drawPath(path, arrowBrush);
-    // Draw Y Axis Label
-    yLabelTopPainter.paint(canvas, Offset(yAxisStart.dx + b/2, yAxisStart.dy));
-    yLabelBottomPainter.paint(canvas, Offset(yAxisEndOffset.dx + b/2, yAxisEndOffset.dy));
-    // Draw X Axis Label
-    xLabelLeftPainter.paint(canvas, Offset(xAxisStart.dx, xAxisStart.dy + b/3));
-    xLabelRightPainter.paint(canvas, Offset(xAxisEndOffset.dx - xLabelRightPainter.width/2, xAxisEndOffset.dy + b/3));
-  }
+  final textStyle = TextStyle(
+    color: Colors.black,
+    fontSize: size.height/20,//30,
+  );
+  final yLabelTopText = TextSpan(
+    text: 'Peace',
+    style: textStyle,
+  );
+  final  yLabelBottomText = TextSpan(
+    text: 'Suffering',
+    style: textStyle,
+  );
+  final  xLabelLeftText = TextSpan(
+    text: 'Pain',
+    style: textStyle,
+  );
+  final  xLabelRightText = TextSpan(
+    text: 'Pleasure',
+    style: textStyle,
+  );
+
+  final yLabelTopPainter = TextPainter(
+    text: yLabelTopText,
+    textDirection: TextDirection.ltr,
+  );
+  yLabelTopPainter.layout(
+    minWidth: 0,
+    maxWidth: size.width,
+  );
+  final yLabelBottomPainter = TextPainter(
+    text: yLabelBottomText,
+    textDirection: TextDirection.ltr,
+  );
+  yLabelBottomPainter.layout(
+    minWidth: 0,
+    maxWidth: size.width,
+  );
+  final xLabelLeftPainter = TextPainter(
+    text: xLabelLeftText,
+    textDirection: TextDirection.ltr,
+  );
+  xLabelLeftPainter.layout(
+    minWidth: 0,
+    maxWidth: size.width,
+  );
+  final xLabelRightPainter = TextPainter(
+    text: xLabelRightText,
+    textDirection: TextDirection.ltr,
+  );
+  xLabelRightPainter.layout(
+    minWidth: 0,
+    maxWidth: size.width,
+  );
+
+  const arrowAngle =  30 * math.pi / 180;
+  const transformFactor = 40.0;
+
+  final arrowSize = crossBrush.strokeWidth*7;
+  final yAxisStart = Offset(size.width/2, transformFactor);
+  final yAxisEnd = Offset(size.width/2, size.height-transformFactor);
+  final xAxisStart = Offset(transformFactor, size.height/2);
+  final xAxisEnd = Offset(size.width-transformFactor, size.height/2);
+  
+  final yAxisStartArrowXComp = yAxisStart.dx - yAxisEnd.dx;
+  final yAxisStartArrowYComp = yAxisStart.dy - yAxisEnd.dy;
+  final yAxisStartArrowAngle = math.atan2(yAxisStartArrowYComp, yAxisStartArrowXComp);
+
+  final p1 = Offset(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle - arrowAngle),
+    yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle - arrowAngle));
+  final p2 = Offset(yAxisStart.dx - arrowSize * math.cos(yAxisStartArrowAngle + arrowAngle),
+    yAxisStart.dy - arrowSize * math.sin(yAxisStartArrowAngle + arrowAngle));
+  final p3 = yAxisStart;
+  final a = (p1 - p3).distance;
+  final b = (p1 - p2).distance;
+  final c = (p2 - p3).distance;
+  final s = (a+b+c)/2;
+  final area = math.sqrt((s*(s-a)*(s-b)*(s-c)));
+  final height = area / (1 / 2 * b);
+
+  // Apply new offsets after taking into account the height of each arrow which is appended to the end of the axis line
+  final yAxisEndOffset = Offset(yAxisEnd.dx, yAxisEnd.dy - height);
+  final xAxisEndOffset = Offset(xAxisEnd.dx - height, xAxisEnd.dy);
+
+  // Draw Y Axis Label
+  yLabelTopPainter.paint(canvas, Offset(yAxisStart.dx + b/2, yAxisStart.dy));
+  yLabelBottomPainter.paint(canvas, Offset(yAxisEndOffset.dx + b/2, yAxisEndOffset.dy));
+  // Draw X Axis Label
+  xLabelLeftPainter.paint(canvas, Offset(xAxisStart.dx, xAxisStart.dy + b/3));
+  xLabelRightPainter.paint(canvas, Offset(xAxisEndOffset.dx - xLabelRightPainter.width/2, xAxisEndOffset.dy + b/3));
 }
